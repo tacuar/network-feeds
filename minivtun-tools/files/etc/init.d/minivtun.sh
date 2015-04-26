@@ -55,22 +55,6 @@ __netmask_to_bits()
 
 do_start()
 {
-#	local vt_enabled=`uci get minivtun.@minivtun[0].enabled 2>/dev/null`
-#	local vt_network=`uci get minivtun.@minivtun[0].network 2>/dev/null`
-#	local vt_server_addr=`uci get minivtun.@minivtun[0].server`
-#	local vt_server_port=`uci get minivtun.@minivtun[0].server_port`
-#	local vt_password=`uci get minivtun.@minivtun[0].password 2>/dev/null`
-#	local vt_local_ipaddr=`uci get minivtun.@minivtun[0].local_ipaddr 2>/dev/null`
-#	local vt_local_netmask=`uci get minivtun.@minivtun[0].local_netmask 2>/dev/null`
-#	local vt_local_ip6pair=`uci get minivtun.@minivtun[0].local_ip6pair 2>/dev/null`
-#	local vt_safe_dns=`uci get minivtun.@minivtun[0].safe_dns 2>/dev/null`
-#	local vt_safe_dns_port=`uci get minivtun.@minivtun[0].safe_dns_port 2>/dev/null`
-#	local vt_proxy_mode=`uci get minivtun.@minivtun[0].proxy_mode`
-#	#local vt_protocols=`uci get minivtun.@minivtun[0].protocols 2>/dev/null`
-#	# $covered_subnets, $local_addresses are not required
-#	local covered_subnets=`uci get minivtun.@minivtun[0].covered_subnets 2>/dev/null`
-#	local local_addresses=`uci get minivtun.@minivtun[0].local_addresses 2>/dev/null`
-
 	if [ -z "$vt_server_addr" -o -z "$vt_server_port" ]; then
 		echo "WARNING: No server address configured, not starting."
 		return 1
@@ -165,6 +149,9 @@ do_start()
 	# -----------------------------------------------------------------
 	###### Restart main 'dnsmasq' service if needed ######
 	if ls /tmp/etc/dnsmasq-go.d/* >/dev/null 2>&1; then
+		# IMPORTANT: Must make sure 'dnsmasq' is not running as a system service
+		[ -x /etc/init.d/dnsmasq ] && /etc/init.d/dnsmasq stop >/dev/null 2>/dev/null
+
 		cat > /tmp/etc/dnsmasq-go.conf <<EOF
 conf-dir=/tmp/etc/dnsmasq-go.d
 resolv-file=/tmp/etc/resolv.conf.auto
@@ -183,8 +170,6 @@ EOF
 
 do_stop()
 {
-#	local vt_network=`uci get minivtun.@minivtun[0].network 2>/dev/null`
-
 	[ -z "$vt_network" ] && vt_network="vt0"
 	local vt_ifname="minivtun-$vt_network"
 
