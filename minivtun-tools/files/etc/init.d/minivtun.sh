@@ -127,6 +127,7 @@ do_start()
 
 	iptables -t mangle -I PREROUTING -j minivtun_$vt_network
 	iptables -t mangle -I OUTPUT -j minivtun_$vt_network
+	iptables -t nat -I POSTROUTING -o $vt_ifname -j MASQUERADE
 
 	# -----------------------------------------------------------------
 	mkdir -p /tmp/etc/dnsmasq-go.d
@@ -188,6 +189,7 @@ do_stop()
 
 	# -----------------------------------------------------------------
 	if iptables -t mangle -F minivtun_$vt_network 2>/dev/null; then
+		while iptables -t nat -D POSTROUTING -o $vt_ifname -j MASQUERADE 2>/dev/null; do :; done
 		while iptables -t mangle -D OUTPUT -j minivtun_$vt_network 2>/dev/null; do :; done
 		while iptables -t mangle -D PREROUTING -j minivtun_$vt_network 2>/dev/null; do :; done
 		iptables -t mangle -X minivtun_$vt_network 2>/dev/null
