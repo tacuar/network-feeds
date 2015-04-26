@@ -22,10 +22,10 @@ install: all
 	   cp -v $$L $$d/; \
 	 done;
 	@[ -f ./aaa ] && mv ./aaa -f /etc/default/minivtun || :
-	@ln -svf ../init.d/minivtun.sh /etc/rc2.d/S95minivtun.sh; \
-	 ln -svf ../init.d/minivtun.sh /etc/rc3.d/S95minivtun.sh; \
-	 ln -svf ../init.d/minivtun.sh /etc/rc4.d/S95minivtun.sh; \
-	 ln -svf ../init.d/minivtun.sh /etc/rc5.d/S95minivtun.sh
+#	@ln -svf ../init.d/minivtun.sh /etc/rc2.d/S95minivtun.sh; \
+#	 ln -svf ../init.d/minivtun.sh /etc/rc3.d/S95minivtun.sh; \
+#	 ln -svf ../init.d/minivtun.sh /etc/rc4.d/S95minivtun.sh; \
+#	 ln -svf ../init.d/minivtun.sh /etc/rc5.d/S95minivtun.sh
 	@if which ipset >/dev/null; then \
 	   /etc/init.d/minivtun.sh restart; \
 	 else \
