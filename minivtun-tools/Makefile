@@ -1,48 +1,40 @@
 #
 # Copyright (c) 2015 Justin Liu
 # Author: Justin Liu <rssnsj@gmail.com>
-# https://github.com/rssnsj/network-feeds
 #
 
-include $(TOPDIR)/rules.mk
+all: src/minivtun
 
-PKG_NAME:=minivtun
-PKG_VERSION:=20150425
-PKG_RELEASE=$(PKG_SOURCE_VERSION)
+src/minivtun: src
+	make -C src
 
-PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-$(PKG_VERSION)
-PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.bz2
-PKG_SOURCE_SUBDIR:=$(PKG_NAME)-$(PKG_VERSION)
-PKG_SOURCE_URL:=https://github.com/rssnsj/minivtun.git
-PKG_SOURCE_PROTO:=git
-PKG_SOURCE_VERSION:=22ce99fd7398a9281fc52cf388dbd5da110e8090
+src:
+	svn co https://github.com/rssnsj/minivtun/trunk/src
 
-include $(INCLUDE_DIR)/package.mk
+install: all
+	@cp -vf src/minivtun /usr/sbin/
+	@[ -f /etc/default/minivtun ] && mv -f /etc/default/minivtun ./aaa || :
+	@cd files; \
+	 find * -type f | grep -v '\/\.svn\/' | grep -v '\/\.git' | \
+	 while read L; do \
+	   d=/`dirname $$L`; \
+	   mkdir -p $$d; \
+	   cp -v $$L $$d/; \
+	 done;
+	@[ -f ./aaa ] && mv ./aaa -f /etc/default/minivtun || :
+	@ln -svf ../init.d/minivtun.sh /etc/rc2.d/S95minivtun.sh; \
+	 ln -svf ../init.d/minivtun.sh /etc/rc3.d/S95minivtun.sh; \
+	 ln -svf ../init.d/minivtun.sh /etc/rc4.d/S95minivtun.sh; \
+	 ln -svf ../init.d/minivtun.sh /etc/rc5.d/S95minivtun.sh
+	@if which ipset >/dev/null; then \
+	   /etc/init.d/minivtun.sh restart; \
+	 else \
+	   echo "*** 'ipset' is not installed. Not starting 'minivtun' service."; \
+	 fi
 
-define Package/minivtun
-  CATEGORY:=Network
-  TITLE:=Non-standard VPN that helps you to get through firewalls
-  URL:=https://github.com/rssnsj/network-feeds
-  MAINTAINER:=Justin Liu <rssnsj@gmail.com>
-  DEPENDS:=+ip +ipset-lists +kmod-tun +libopenssl +luci
-endef
-
-define Package/minivtun/conffiles
-/etc/config/minivtun
-endef
-
-define Build/Compile
-	$(MAKE) -C $(PKG_BUILD_DIR)/src CC="$(TARGET_CROSS)gcc" \
-		CFLAGS="$(TARGET_CPPFLAGS) $(TARGET_CFLAGS)"
-endef
-
-define Package/minivtun/install
-	mkdir -p $(1)/usr/sbin
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/src/minivtun $(1)/usr/sbin
-	$(CP) -a files/* $(1)/
-	mkdir -p $(1)/usr/lib/lua/luci/i18n
-	$(BUILD_DIR)/luci/build/po2lmo po/zh_CN/minivtun.po $(1)/usr/lib/lua/luci/i18n/minivtun.zh-cn.lmo || :
-endef
-
-$(eval $(call BuildPackage,minivtun))
+uninstall:
+	/etc/init.d/minivtun.sh stop || :
+	@rm -vf /etc/rc?.d/*minivtun.sh
+	@rm -rvf /etc/minivtun /etc/gfwlist /etc/init.d/minivtun.sh
+	@rm -vf /usr/sbin/minivtun
 
