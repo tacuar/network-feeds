@@ -3,40 +3,29 @@
 # Author: Justin Liu <rssnsj@gmail.com>
 #
 
-include $(TOPDIR)/rules.mk
+all:
 
-PKG_NAME:=ipset-lists
-PKG_VERSION:=1
-PKG_RELEASE:=20150425
+install:
+	@cd files; \
+	 find * -type f | grep -v '\/\.svn\/' | grep -v '\/\.git' | \
+	 while read L; do \
+	   d=/`dirname $$L`; \
+	   mkdir -p $$d; \
+	   cp -v $$L $$d/; \
+	 done;
+	@ln -svf ../init.d/ipset.sh /etc/rc2.d/S37ipset.sh; \
+	 ln -svf ../init.d/ipset.sh /etc/rc3.d/S37ipset.sh; \
+	 ln -svf ../init.d/ipset.sh /etc/rc4.d/S37ipset.sh; \
+	 ln -svf ../init.d/ipset.sh /etc/rc5.d/S37ipset.sh
+	@if which ipset >/dev/null; then \
+	   /etc/init.d/ipset.sh restart; \
+	   echo "Predefined lists were imported."; \
+	 else \
+	   echo "*** 'ipset' is not installed. Not importing the predefined lists."; \
+	 fi
 
-PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-$(PKG_VERSION)
+uninstall:
+	/etc/init.d/ipset.sh stop || :
+	@rm -vf /etc/rc?.d/*ipset.sh
+	@rm -rvf /etc/ipset /etc/gfwlist /etc/init.d/ipset.sh
 
-include $(INCLUDE_DIR)/package.mk
-
-define Package/ipset-lists
-  CATEGORY:=Network
-  TITLE:=Service for IPSET address tables
-  MAINTAINER:=Justin Liu <rssnsj@gmail.com>
-  DEPENDS:=+ipset +luci
-endef
-
-define Package/ipset-lists/conffiles
-/etc/gfwlist/china-banned
-endef
-
-define Build/Prepare
-	mkdir -p $(PKG_BUILD_DIR)
-endef
-
-define Build/Compile/Default
-
-endef
-Build/Compile = $(Build/Compile/Default)
-
-define Package/ipset-lists/install
-	$(CP) -a files/* $(1)/
-	mkdir -p $(1)/usr/lib/lua/luci/i18n
-	$(BUILD_DIR)/luci/build/po2lmo po/zh_CN/gfwlist.po $(1)/usr/lib/lua/luci/i18n/gfwlist.zh-cn.lmo || :
-endef
-
-$(eval $(call BuildPackage,ipset-lists))
