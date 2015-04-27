@@ -1,0 +1,27 @@
+#!/bin/bash
+
+echo "Running post/postinst ..."
+
+if [ ! -f /etc/default/shadowsocks ]; then
+	mkdir -p /etc/default
+	cat > /etc/default/shadowsocks <<EOF
+#
+vt_enabled=0
+vt_server_addr=17.17.17.17
+vt_server_port=1717
+vt_password='WaWaWaWa'
+vt_safe_dns=8.8.8.8
+vt_safe_dns_port=53
+vt_proxy_mode=S
+# $covered_subnets, $local_addresses are not required
+covered_subnets=192.168.10.0/24
+local_addresses=192.168.10.1
+
+EOF
+fi
+
+ln -svf ../init.d/ss-redir.sh /etc/rc2.d/S95ss-redir.sh
+ln -svf ../init.d/ss-redir.sh /etc/rc3.d/S95ss-redir.sh
+ln -svf ../init.d/ss-redir.sh /etc/rc4.d/S95ss-redir.sh
+ln -svf ../init.d/ss-redir.sh /etc/rc5.d/S95ss-redir.sh
+
