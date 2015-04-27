@@ -1,8 +1,16 @@
-#!/bin/sh /etc/rc.common
+#!/bin/sh
 #
 # Copyright (C) 2014 Justin Liu <rssnsj@gmail.com>
-# https://github.com/rssnsj/network-feeds
 #
+
+### BEGIN INIT INFO
+# Provides: shadowsocks-tools
+# Required-Start:
+# Required-Stop:
+# Default-Start: 2 3 4 5
+# Default-Stop:
+# Short-Description: Non-standard VPN that helps you to get through firewalls
+### END INIT INFO
 
 START=96
 
@@ -14,50 +22,35 @@ START=96
 
 SS_REDIR_PORT=7070
 SS_REDIR_PIDFILE=/var/run/ss-redir-go.pid 
+DNSMASQ_PORT=53
+DNSMASQ_PIDFILE=/var/run/dnsmasq-go.pid
 PDNSD_LOCAL_PORT=7453
+
+[ -f /etc/default/shadowsocks ] && . /etc/default/shadowsocks
+if [ -z "$vt_enabled" -o "$vt_enabled" = 0 ]; then
+	echo "WARNING: Shadowsocks transparent proxy service is disabled."
+	exit 1
+fi
+
 
 # -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 # New implementation:
 # Attach rules to main 'dnsmasq' service and restart it.
 
-start()
+do_start()
 {
-	local vt_enabled=`uci get shadowsocks.@shadowsocks[0].enabled 2>/dev/null`
-	local vt_server_addr=`uci get shadowsocks.@shadowsocks[0].server`
-	local vt_server_port=`uci get shadowsocks.@shadowsocks[0].server_port`
-	local vt_password=`uci get shadowsocks.@shadowsocks[0].password 2>/dev/null`
-	local vt_method=`uci get shadowsocks.@shadowsocks[0].method`
-	local vt_timeout=`uci get shadowsocks.@shadowsocks[0].timeout 2>/dev/null`
-	local vt_safe_dns=`uci get shadowsocks.@shadowsocks[0].safe_dns 2>/dev/null`
-	local vt_safe_dns_port=`uci get shadowsocks.@shadowsocks[0].safe_dns_port 2>/dev/null`
-	local vt_safe_dns_tcp=`uci get shadowsocks.@shadowsocks[0].safe_dns_tcp 2>/dev/null`
-	local vt_proxy_mode=`uci get shadowsocks.@shadowsocks[0].proxy_mode`
-	# $covered_subnets, $local_addresses are not required
-	local covered_subnets=`uci get shadowsocks.@shadowsocks[0].covered_subnets 2>/dev/null`
-	local local_addresses=`uci get shadowsocks.@shadowsocks[0].local_addresses 2>/dev/null`
-
-	/etc/init.d/pdnsd disable 2>/dev/null
-
-	# -----------------------------------------------------------------
-	if [ "$vt_enabled" = 0 ]; then
-		echo "WARNING: Shadowsocks is disabled."
-		return 1
-	fi
-
 	if [ -z "$vt_server_addr" -o -z "$vt_server_port" ]; then
 		echo "WARNING: Shadowsocks not fully configured, not starting."
 		return 1
 	fi
-
 	[ -z "$vt_proxy_mode" ] && vt_proxy_mode=S
 	[ -z "$vt_method" ] && vt_method=table
 	[ -z "$vt_timeout" ] && vt_timeout=60
 	[ -z "$vt_safe_dns_port" ] && vt_safe_dns_port=53
 	# Get LAN settings as default parameters
-	[ -f /lib/functions/network.sh ] && . /lib/functions/network.sh
-	[ -z "$covered_subnets" ] && network_get_subnet covered_subnets lan
-	[ -z "$local_addresses" ] && network_get_ipaddr local_addresses lan
+	[ -z "$covered_subnets" ] && covered_subnets="192.168.10.0/24"
+	[ -z "$local_addresses" ] && local_addresses="192.168.10.1"
 	local vt_gfwlist="china-banned"
 	vt_np_ipset="china"  # Must be global variable
 
@@ -95,23 +88,21 @@ start()
 			iptables -t nat -A shadowsocks_pre -m set ! --match-set gfwlist dst -j RETURN
 			;;
 	esac
-	local subnet
-	for subnet in $covered_subnets; do
-		iptables -t nat -A shadowsocks_pre -s $subnet -p tcp -j REDIRECT --to $SS_REDIR_PORT
-	done
+	iptables -t nat -A shadowsocks_pre -p tcp -j REDIRECT --to $SS_REDIR_PORT
 	iptables -t nat -I PREROUTING -p tcp -j shadowsocks_pre
+	iptables -t nat -I OUTPUT -p tcp -j shadowsocks_pre
 
 	# -----------------------------------------------------------------
-	mkdir -p /var/etc/dnsmasq-go.d
+	mkdir -p /tmp/etc/dnsmasq-go.d
 	###### Anti-pollution configuration ######
 	if [ -n "$vt_safe_dns" ]; then
 		if [ "$vt_safe_dns_tcp" = 1 ]; then
 			start_pdnsd "$vt_safe_dns"
 			awk -vs="127.0.0.1#$PDNSD_LOCAL_PORT" '!/^$/&&!/^#/{printf("server=/%s/%s\n",$0,s)}' \
-				/etc/gfwlist/$vt_gfwlist > /var/etc/dnsmasq-go.d/01-pollution.conf
+				/etc/gfwlist/$vt_gfwlist > /tmp/etc/dnsmasq-go.d/01-pollution.conf
 		else
 			awk -vs="$vt_safe_dns#$vt_safe_dns_port" '!/^$/&&!/^#/{printf("server=/%s/%s\n",$0,s)}' \
-				/etc/gfwlist/$vt_gfwlist > /var/etc/dnsmasq-go.d/01-pollution.conf
+				/etc/gfwlist/$vt_gfwlist > /tmp/etc/dnsmasq-go.d/01-pollution.conf
 		fi
 	else
 		echo "WARNING: Not using secure DNS, DNS resolution might be polluted if you are in China."
@@ -121,53 +112,52 @@ start()
 	case "$vt_proxy_mode" in
 		M|V)
 			awk '!/^$/&&!/^#/{printf("ipset=/%s/gfwlist\n",$0)}' \
-				/etc/gfwlist/$vt_gfwlist > /var/etc/dnsmasq-go.d/02-ipset.conf
+				/etc/gfwlist/$vt_gfwlist > /tmp/etc/dnsmasq-go.d/02-ipset.conf
 			;;
 	esac
 
 	# -----------------------------------------------------------------
 	###### Restart main 'dnsmasq' service if needed ######
-	if ls /var/etc/dnsmasq-go.d/* >/dev/null 2>&1; then
-		mkdir -p /tmp/dnsmasq.d
-		cat > /tmp/dnsmasq.d/dnsmasq-go.conf <<EOF
-conf-dir=/var/etc/dnsmasq-go.d
-EOF
-		/etc/init.d/dnsmasq restart
+	if ls /tmp/etc/dnsmasq-go.d/* >/dev/null 2>&1; then
+		# IMPORTANT: Must make sure 'dnsmasq' is not running as a system service
+		[ -x /etc/init.d/dnsmasq ] && /etc/init.d/dnsmasq stop >/dev/null 2>/dev/null
 
-		# Check if DNS service was really started
-		local dnsmasq_ok=N
-		local i
-		for i in 0 1 2 3 4 5 6 7; do
-			sleep 1
-			local dnsmasq_pid=`cat /var/run/dnsmasq.pid 2>/dev/null`
-			if [ -n "$dnsmasq_pid" ]; then
-				if kill -0 "$dnsmasq_pid" 2>/dev/null; then
-					dnsmasq_ok=Y
-					break
-				fi
-			fi
-		done
-		if [ "$dnsmasq_ok" != Y ]; then
-			echo "WARNING: Attached dnsmasq rules will cause the service startup failure. Removed those configurations."
-			rm -f /tmp/dnsmasq.d/dnsmasq-go.conf
-			/etc/init.d/dnsmasq restart
+		cat > /tmp/etc/dnsmasq-go.conf <<EOF
+conf-dir=/tmp/etc/dnsmasq-go.d
+resolv-file=/tmp/etc/resolv.conf.auto
+EOF
+		if ! grep 'nameserver[ \t]\+127\.0\.0\.1' /etc/resolv.conf >/dev/null; then
+			cat /etc/resolv.conf > /tmp/etc/resolv.conf.auto
+		fi
+		if dnsmasq -C /tmp/etc/dnsmasq-go.conf -p $DNSMASQ_PORT -x $DNSMASQ_PIDFILE; then
+			echo "nameserver 127.0.0.1" > /etc/resolv.conf
+		else
+			echo "*** WARNING: 'dnsmasq' service was not started successfully."
 		fi
 	fi
 
 }
 
-stop()
+do_stop()
 {
-	rm -rf /var/etc/dnsmasq-go.d
-	if [ -f /tmp/dnsmasq.d/dnsmasq-go.conf ]; then
-		rm -f /tmp/dnsmasq.d/dnsmasq-go.conf
-		/etc/init.d/dnsmasq restart
+	# -----------------------------------------------------------------
+	# Stop 'dnsmasq' service and delete configuration files
+	if [ -f $DNSMASQ_PIDFILE ]; then
+		kill -9 `cat $DNSMASQ_PIDFILE`
+		rm -f $DNSMASQ_PIDFILE
+	fi
+	rm -rf /tmp/etc/dnsmasq-go.d
+	rm -f /tmp/etc/dnsmasq-go.conf
+	# Restore /etc/resolv.conf
+	if grep 'nameserver[ \t]\+127\.0\.0\.1' /etc/resolv.conf >/dev/null; then
+		[ -f /tmp/etc/resolv.conf.auto ] && cat /tmp/etc/resolv.conf.auto > /etc/resolv.conf
 	fi
 
 	stop_pdnsd
 
 	# -----------------------------------------------------------------
 	if iptables -t nat -F shadowsocks_pre 2>/dev/null; then
+		while iptables -t nat -D OUTPUT -p tcp -j shadowsocks_pre 2>/dev/null; do :; done
 		while iptables -t nat -D PREROUTING -p tcp -j shadowsocks_pre 2>/dev/null; do :; done
 		iptables -t nat -X shadowsocks_pre 2>/dev/null
 	fi
@@ -180,6 +170,7 @@ stop()
 		kill -9 `cat $SS_REDIR_PIDFILE`
 		rm -f $SS_REDIR_PIDFILE
 	fi
+
 }
 
 # $1: upstream DNS server
@@ -191,12 +182,12 @@ start_pdnsd()
 	[ -n "$safe_dns" ] && tcp_dns_list="$safe_dns,$tcp_dns_list"
 
 	killall -9 pdnsd 2>/dev/null && sleep 1
-	mkdir -p /var/etc /var/pdnsd
-	cat > /var/etc/pdnsd.conf <<EOF
+	mkdir -p /tmp/etc /tmp/pdnsd
+	cat > /tmp/etc/pdnsd.conf <<EOF
 global {
 	perm_cache=256;
-	cache_dir="/var/pdnsd";
-	pid_file = /var/run/pdnsd.pid;
+	cache_dir="/tmp/pdnsd";
+	pid_file = /tmp/run/pdnsd.pid;
 	run_as="nobody";
 	server_ip = 127.0.0.1;
 	server_port = $PDNSD_LOCAL_PORT;
@@ -219,7 +210,7 @@ server {
 }
 EOF
 
-	/usr/sbin/pdnsd -c /var/etc/pdnsd.conf -d
+	start-stop-daemon -S -b -x /usr/sbin/pdnsd -- -c /tmp/etc/pdnsd.conf --nostatus
 
 	# Access TCP DNS server through Shadowsocks tunnel
 	if iptables -t nat -N pdnsd_output; then
@@ -236,7 +227,24 @@ stop_pdnsd()
 		iptables -t nat -X pdnsd_output
 	fi
 	killall -9 pdnsd 2>/dev/null
-	rm -rf /var/pdnsd
-	rm -f /var/etc/pdnsd.conf
+	rm -rf /tmp/pdnsd
+	rm -f /tmp/etc/pdnsd.conf
 }
+
+case "$1" in
+	start)
+		do_start
+		;;
+	stop)
+		do_stop
+		;;
+	restart)
+		do_stop
+		do_start
+		;;
+	*)
+		echo "Usage: $0 {start|stop|restart}"
+		exit 1
+		;;
+esac
 
