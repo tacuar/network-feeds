@@ -1,0 +1,12 @@
+Source: ipset-lists
+Section: net
+Priority: optional
+Maintainer: Justin Liu <rssnsj@gmail.com>
+Homepage: https://github.com/rssnsj/network-feeds/tree/linux-dist
+Build-Depends: build-essential (>= 7), debhelper
+
+Package: ipset-lists
+Architecture: all
+Depends: iptables, ipset
+Description: ipset tables and gfwlist
+
