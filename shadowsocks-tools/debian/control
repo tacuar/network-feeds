@@ -3,10 +3,10 @@ Section: net
 Priority: optional
 Maintainer: Justin Liu <rssnsj@gmail.com>
 Homepage: https://github.com/rssnsj/network-feeds/tree/linux-dist
-Build-Depends: build-essential (>= 7), debhelper,shadowsocks-libev
+Build-Depends: build-essential (>= 7), debhelper
 
 Package: shadowsocks-tools
 Architecture: any
-Depends: ipset-lists, iproute, iptables, ipset, dnsmasq, pdnsd
+Depends: ipset-lists, iproute, iptables, ipset, dnsmasq, pdnsd, shadowsocks-libev
 Description: A fast secure tunnel proxy that help you get through firewalls
 
