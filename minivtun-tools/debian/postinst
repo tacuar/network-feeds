@@ -1,0 +1,9 @@
+#!/bin/bash
+
+echo "Running post/postinst ..."
+
+ln -svf ../init.d/minivtun.sh /etc/rc2.d/S95minivtun.sh
+ln -svf ../init.d/minivtun.sh /etc/rc3.d/S95minivtun.sh
+ln -svf ../init.d/minivtun.sh /etc/rc4.d/S95minivtun.sh
+ln -svf ../init.d/minivtun.sh /etc/rc5.d/S95minivtun.sh
+

@@ -1,0 +1,7 @@
+#!/bin/bash
+
+echo "Running prerm ..."
+
+/etc/init.d/minivtun.sh stop
+rm -vf /etc/rc?.d/*minivtun.sh
+
