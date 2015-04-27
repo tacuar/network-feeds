@@ -22,7 +22,7 @@ DNSMASQ_PIDFILE=/var/run/dnsmasq-go.pid
 [ -f /etc/default/minivtun ] && . /etc/default/minivtun
 if [ -z "$vt_enabled" -o "$vt_enabled" = 0 ]; then
 	echo "WARNING: Mini Virtual Tunneller is disabled."
-	return 1
+	exit 1
 fi
 
 __netmask_to_bits()
