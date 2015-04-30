@@ -5,7 +5,7 @@ OpenWrt下的网络加速扩展应用
 * ipset-lists: 包含所有中国IP地址段的ipset列表（数据来自 apnic.net）
 * shadowsocks-libev: Shadowsocks - v2.1.4
 * shadowsocks-tools: OpenWrt下的Shadowsocks配置、启动脚本以及luci界面
-* minivtun-tools: 一种安全、快速、部署便捷的非标准协议VPN，可用于防火墙穿越（服务器配置方法请见：https://github.com/rssnsj/minivtun）
+* minivtun-tools: 一种安全、快速、部署便捷的非标准协议VPN，可用于防火墙穿越（服务器配置方法请见：https://github.com/rssnsj/minivtun ）
 
 ### 如何编译以及生成.deb安装包
 
@@ -22,29 +22,25 @@ OpenWrt下的网络加速扩展应用
 ##### Ubuntu 12.04 - 64位
 
     apt-get update
-    apt-get install ipset iptables dnsmasq pdnsd -y
-    update-rc.d -f dnsmasq remove
-    /etc/init.d/dnsmasq stop
+    apt-get install ipset iptables dnsmasq-base pdnsd -y
      
     # 若是你自己编译的.deb包则跳过下载步骤
     wget http://rssn.cn/linux-dist/amd64/ipset-lists_0.1.0_all.deb
-    wget http://rssn.cn/linux-dist/amd64/minivtun-tools_0.9.0_amd64.deb
+    wget http://rssn.cn/linux-dist/amd64/minivtun-tools_0.9.1_amd64.deb
     wget http://rssn.cn/linux-dist/amd64/shadowsocks-libev_2.1.4-1_amd64.deb
-    wget http://rssn.cn/linux-dist/amd64/shadowsocks-tools_0.9.0_amd64.deb
+    wget http://rssn.cn/linux-dist/amd64/shadowsocks-tools_0.9.1_amd64.deb
      
     dpkg -i ipset-lists_*.deb minivtun-tools_*.deb shadowsocks-libev_*.deb shadowsocks-tools_*.deb
 
 ##### Ubuntu 12.04 - 32位
 
     apt-get update
-    apt-get install ipset iptables dnsmasq pdnsd -y
-    update-rc.d -f dnsmasq remove
-    /etc/init.d/dnsmasq stop
+    apt-get install ipset iptables dnsmasq-base pdnsd -y
      
     wget http://rssn.cn/linux-dist/i386/ipset-lists_0.1.0_all.deb
-    wget http://rssn.cn/linux-dist/i386/minivtun-tools_0.9.0_i386.deb
+    wget http://rssn.cn/linux-dist/i386/minivtun-tools_0.9.1_i386.deb
     wget http://rssn.cn/linux-dist/i386/shadowsocks-libev_2.1.4-1_i386.deb
-    wget http://rssn.cn/linux-dist/i386/shadowsocks-tools_0.9.0_i386.deb
+    wget http://rssn.cn/linux-dist/i386/shadowsocks-tools_0.9.1_i386.deb
      
     dpkg -i ipset-lists_*.deb minivtun-tools_*.deb shadowsocks-libev_*.deb shadowsocks-tools_*.deb
 
