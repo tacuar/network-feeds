@@ -7,6 +7,6 @@ Build-Depends: build-essential (>= 7), debhelper
 
 Package: shadowsocks-tools
 Architecture: any
-Depends: ipset-lists, iproute, iptables, ipset, dnsmasq, pdnsd, shadowsocks-libev
+Depends: ipset-lists, iproute, iptables, ipset, dnsmasq-base, pdnsd, shadowsocks-libev
 Description: A fast secure tunnel proxy that help you get through firewalls
 

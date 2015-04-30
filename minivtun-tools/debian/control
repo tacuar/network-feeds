@@ -7,6 +7,6 @@ Build-Depends: build-essential (>= 7), debhelper, libssl-dev
 
 Package: minivtun-tools
 Architecture: any
-Depends: ipset-lists, iproute, iptables, ipset, dnsmasq
+Depends: ipset-lists, iproute, iptables, ipset, dnsmasq-base
 Description: Non-standard VPN that helps you to get through firewalls
 

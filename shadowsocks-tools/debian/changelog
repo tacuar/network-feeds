@@ -1,3 +1,9 @@
+shadowsocks-tools (0.9.1) beta; urgency=low
+
+  * Depend on 'dnsmasq-base' instead of 'dnsmasq' to avoid being started as system service.
+
+ -- Justin Liu <rssnsj@gmail.com>  Thu, 30 Apr 2015 14:07:00 +0800
+
 shadowsocks-tools (0.9.0) beta; urgency=low
 
   * Initial release.
