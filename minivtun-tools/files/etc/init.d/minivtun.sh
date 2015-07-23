@@ -14,12 +14,10 @@
 
 START=93
 
+[ -f /etc/default/minivtun ] && . /etc/default/minivtun
+
 do_start()
 {
-	local vt_enabled=`uci get minivtun.@minivtun[0].enabled 2>/dev/null`
-	local vt_server_addr=`uci get minivtun.@minivtun[0].server`
-	local vt_server_port=`uci get minivtun.@minivtun[0].server_port`
-
 	if [ "$vt_enabled" = 0 ]; then
 		echo "WARNING: Mini Virtual Tunneller is disabled."
 		return 1

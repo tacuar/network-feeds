@@ -9,10 +9,6 @@ VPN_ROUTE_FWMARK=199
 VPN_IPROUTE_TABLE=virtual
 
 [ -f /etc/default/minivtun ] && . /etc/default/minivtun
-if [ -z "$vt_enabled" -o "$vt_enabled" = 0 ]; then
-	echo "WARNING: Mini Virtual Tunneller is disabled."
-	exit 1
-fi
 
 __netmask_to_bits()
 {
@@ -108,8 +104,6 @@ do_start_wait()
 	[ -z "$vt_proxy_mode" ] && vt_proxy_mode=S
 	[ -z "$vt_safe_dns_port" ] && vt_safe_dns_port=53
 	[ -z "$vt_max_dns_wait" ] && vt_max_dns_wait=$MAX_DNS_WAIT_DEFAULT
-	# Get LAN settings as default parameters
-	[ -f /lib/functions/network.sh ] && . /lib/functions/network.sh
 	[ -z "$covered_subnets" ] && covered_subnets="192.168.10.0/24"
 	[ -z "$local_addresses" ] && local_addresses="192.168.10.1"
 	local vt_ifname="minivtun-$vt_network"
@@ -206,17 +200,15 @@ do_start_wait()
 	# -----------------------------------------------------------------
 	###### Restart main 'dnsmasq' service if needed ######
 	if ls /var/etc/dnsmasq-go.d/* >/dev/null 2>&1; then
-		# IMPORTANT: Must make sure 'dnsmasq' is not running as a system service
-		[ -x /etc/init.d/dnsmasq ] && /etc/init.d/dnsmasq stop >/dev/null 2>/dev/null
+		# IMPORTANT: Must make sure 'dnsmasq' is NOT running as a system service
+		[ -x /etc/init.d/dnsmasq ] && /etc/init.d/dnsmasq stop
 
 		mkdir -p /tmp/dnsmasq.d
 		cat > /tmp/dnsmasq.d/dnsmasq-go.conf <<EOF
 conf-dir=/var/etc/dnsmasq-go.d
 EOF
 
-		if dnsmasq -C /tmp/dnsmasq.d/dnsmasq-go.conf -p $DNSMASQ_PORT -x $DNSMASQ_PIDFILE; then
-			echo "nameserver 127.0.0.1" > /etc/resolv.conf
-		else
+		if ! dnsmasq -C /tmp/dnsmasq.d/dnsmasq-go.conf -p $DNSMASQ_PORT -x $DNSMASQ_PIDFILE; then
 			echo "*** WARNING: 'dnsmasq' service was not started successfully."
 		fi
 	fi
@@ -231,9 +223,10 @@ do_stop()
 
 	# -----------------------------------------------------------------
 	rm -rf /var/etc/dnsmasq-go.d
-	if [ -f /tmp/dnsmasq.d/dnsmasq-go.conf ]; then
-		rm -f /tmp/dnsmasq.d/dnsmasq-go.conf
-		killall -9 dnsmasq
+	rm -f /tmp/dnsmasq.d/dnsmasq-go.conf
+	if [ -f $DNSMASQ_PIDFILE ]; then
+		kill -9 `cat $DNSMASQ_PIDFILE`
+		rm -f $DNSMASQ_PIDFILE
 	fi
 
 	# -----------------------------------------------------------------
