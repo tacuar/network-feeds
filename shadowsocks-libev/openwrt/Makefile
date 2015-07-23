@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=shadowsocks-libev
-PKG_VERSION:=2.1.4
+PKG_VERSION:=2.2.2
 PKG_RELEASE=$(PKG_SOURCE_VERSION)
 
 PKG_SOURCE_URL:=https://github.com/shadowsocks/shadowsocks-libev/archive
@@ -31,26 +31,13 @@ define Package/shadowsocks-libev
   DEPENDS:=+libopenssl
 endef
 
-define Package/shadowsocks-libev-polarssl
-  $(call Package/shadowsocks-libev/Default)
-  TITLE+= (PolarSSL)
-  VARIANT:=polarssl
-  DEPENDS:=+libpolarssl
-endef
-
 define Package/shadowsocks-libev/description
 Shadowsocks-libev is a lightweight secured scoks5 proxy for embedded devices and low end boxes.
 endef
 
-Package/shadowsocks-libev-polarssl/description=$(Package/shadowsocks-libev/description)
-
 define Package/shadowsocks-libev/conffiles
 /etc/shadowsocks.json
 endef
-
-ifeq ($(BUILD_VARIANT),polarssl)
-	CONFIGURE_ARGS += --with-crypto-library=polarssl
-endif
 
 define Package/shadowsocks-libev/install
 	$(INSTALL_DIR) $(1)/etc/init.d
@@ -60,7 +47,4 @@ define Package/shadowsocks-libev/install
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/src/ss-{local,redir,tunnel} $(1)/usr/bin
 endef
 
-Package/shadowsocks-libev-polarssl/install=$(Package/shadowsocks-libev/install)
-
 $(eval $(call BuildPackage,shadowsocks-libev))
-$(eval $(call BuildPackage,shadowsocks-libev-polarssl))

@@ -38,6 +38,14 @@ fi
 # New implementation:
 # Attach rules to main 'dnsmasq' service and restart it.
 
+__gfwlist_by_mode()
+{
+	case "$1" in
+		V) echo unblock-youku;;
+		*) echo china-banned;;
+	esac
+}
+
 do_start()
 {
 	if [ -z "$vt_server_addr" -o -z "$vt_server_port" ]; then
@@ -51,7 +59,7 @@ do_start()
 	# Get LAN settings as default parameters
 	[ -z "$covered_subnets" ] && covered_subnets="192.168.10.0/24"
 	[ -z "$local_addresses" ] && local_addresses="192.168.10.1"
-	local vt_gfwlist="china-banned"
+	local vt_gfwlist=`__gfwlist_by_mode $vt_proxy_mode`
 	vt_np_ipset="china"  # Must be global variable
 
 	# -----------------------------------------------------------------
@@ -77,15 +85,14 @@ do_start()
 			iptables -t nat -A shadowsocks_pre -m set --match-set $vt_np_ipset dst -j RETURN
 			;;
 		M)
-			ipset create gfwlist hash:ip maxelem 65536
-			iptables -t nat -A shadowsocks_pre -m set ! --match-set gfwlist dst -j RETURN
+			ipset create $vt_gfwlist hash:ip maxelem 65536 2>/dev/null
+			iptables -t nat -A shadowsocks_pre -m set ! --match-set $vt_gfwlist dst -j RETURN
 			iptables -t nat -A shadowsocks_pre -m set --match-set $vt_np_ipset dst -j RETURN
 			;;
 		V)
 			vt_np_ipset=""
-			vt_gfwlist="unblock-youku"
-			ipset create gfwlist hash:ip maxelem 65536
-			iptables -t nat -A shadowsocks_pre -m set ! --match-set gfwlist dst -j RETURN
+			ipset create $vt_gfwlist hash:ip maxelem 65536 2>/dev/null
+			iptables -t nat -A shadowsocks_pre -m set ! --match-set $vt_gfwlist dst -j RETURN
 			;;
 	esac
 	iptables -t nat -A shadowsocks_pre -p tcp -j REDIRECT --to $SS_REDIR_PORT
@@ -111,8 +118,8 @@ do_start()
 	###### dnsmasq-to-ipset configuration ######
 	case "$vt_proxy_mode" in
 		M|V)
-			awk '!/^$/&&!/^#/{printf("ipset=/%s/gfwlist\n",$0)}' \
-				/etc/gfwlist/$vt_gfwlist > /tmp/etc/dnsmasq-go.d/02-ipset.conf
+			awk '!/^$/&&!/^#/{printf("ipset=/%s/'"$vt_gfwlist"'\n",$0)}' \
+				/etc/gfwlist/$vt_gfwlist > /var/etc/dnsmasq-go.d/02-ipset.conf
 			;;
 	esac
 
@@ -146,8 +153,8 @@ do_stop()
 		kill -9 `cat $DNSMASQ_PIDFILE`
 		rm -f $DNSMASQ_PIDFILE
 	fi
-	rm -rf /tmp/etc/dnsmasq-go.d
-	rm -f /tmp/etc/dnsmasq-go.conf
+	rm -rf /var/etc/dnsmasq-go.d
+	rm -f /tmp/dnsmasq.d/dnsmasq-go.conf
 	# Restore /etc/resolv.conf
 	if grep 'nameserver[ \t]\+127\.0\.0\.1' /etc/resolv.conf >/dev/null; then
 		[ -f /tmp/etc/resolv.conf.auto ] && cat /tmp/etc/resolv.conf.auto > /etc/resolv.conf
@@ -163,7 +170,7 @@ do_stop()
 	fi
 
 	# -----------------------------------------------------------------
-	ipset destroy gfwlist 2>/dev/null
+	[ "$KEEP_GFWLIST" = Y ] || ipset destroy "$vt_gfwlist" 2>/dev/null
 
 	# -----------------------------------------------------------------
 	if [ -f $SS_REDIR_PIDFILE ]; then
@@ -171,6 +178,13 @@ do_stop()
 		rm -f $SS_REDIR_PIDFILE
 	fi
 
+}
+
+restart()
+{
+	KEEP_GFWLIST=Y
+	stop
+	start
 }
 
 # $1: upstream DNS server

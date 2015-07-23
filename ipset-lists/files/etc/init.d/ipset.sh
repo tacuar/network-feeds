@@ -16,13 +16,24 @@ do_start()
 {
 	local file
 	for file in /etc/ipset/*; do
+		[ -f $file ] || continue
 		ipset restore < $file
 	done
 }
 
 do_stop()
 {
-	ipset destroy
+	local file
+	for file in /etc/ipset/*; do
+		[ -f $file ] || continue
+		ipset destroy `basename $file`
+	done
+}
+
+restart()
+{
+	stop >/dev/null 2>&1
+	start
 }
 
 case "$1" in
