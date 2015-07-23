@@ -142,6 +142,7 @@ do_start_wait()
 		return 1
 	fi
 	ip rule add fwmark $VPN_ROUTE_FWMARK table $VPN_IPROUTE_TABLE
+	ip rule add from $vt_local_ipaddr table $VPN_IPROUTE_TABLE
 
 	iptables -t mangle -N minivtun_$vt_network
 	iptables -t mangle -F minivtun_$vt_network
@@ -244,6 +245,7 @@ do_stop()
 	# -----------------------------------------------------------------
 	# We don't have to delete the default route in 'virtual', since
 	# it will be brought down along with the interface.
+	while ip rule del from $vt_local_ipaddr table $VPN_IPROUTE_TABLE 2>/dev/null; do :; done
 	while ip rule del fwmark $VPN_ROUTE_FWMARK table $VPN_IPROUTE_TABLE 2>/dev/null; do :; done
 
 	if [ -f /var/run/$vt_ifname.pid ]; then
