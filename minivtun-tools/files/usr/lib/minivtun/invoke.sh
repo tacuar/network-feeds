@@ -7,6 +7,8 @@
 MAX_DNS_WAIT_DEFAULT=120
 VPN_ROUTE_FWMARK=199
 VPN_IPROUTE_TABLE=virtual
+DNSMASQ_PORT=53
+DNSMASQ_PIDFILE=/var/run/dnsmasq-go.pid
 
 [ -f /etc/default/minivtun ] && . /etc/default/minivtun
 
