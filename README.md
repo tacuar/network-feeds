@@ -7,6 +7,10 @@ Linux下的网络加速扩展应用（欢迎提交有价值优化的 Pull Reques
 * shadowsocks-tools: OpenWrt下的Shadowsocks配置、启动脚本以及luci界面
 * minivtun-tools: 一种安全、快速、部署便捷的非标准协议VPN，可用于防火墙穿越（服务器配置方法请见: https://github.com/rssnsj/minivtun ）
 
+### 下载代码
+
+    git clone https://github.com/rssnsj/network-feeds.git -b linux-dist linux-dist
+
 ### 如何编译以及生成.deb安装包
 
     apt-get update
