@@ -236,13 +236,13 @@ do_stop()
 	fi
 
 	# -----------------------------------------------------------------
-	if iptables -t mangle -F minivtun_go 2>/dev/null; then
-		while iptables -t mangle -D PREROUTING -j minivtun_go 2>/dev/null; do :; done
-		iptables -t mangle -X minivtun_go 2>/dev/null
-	fi
 	if iptables -t mangle -F minivtun_out 2>/dev/null; then
 		while iptables -t mangle -D OUTPUT -j minivtun_out 2>/dev/null; do :; done
 		iptables -t mangle -X minivtun_out 2>/dev/null
+	fi
+	if iptables -t mangle -F minivtun_go 2>/dev/null; then
+		while iptables -t mangle -D PREROUTING -j minivtun_go 2>/dev/null; do :; done
+		iptables -t mangle -X minivtun_go 2>/dev/null
 	fi
 
 	# -----------------------------------------------------------------
