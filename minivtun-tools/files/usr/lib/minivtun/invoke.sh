@@ -204,7 +204,7 @@ do_start_wait()
 	esac
 
 	# -----------------------------------------------------------------
-	###### Restart main 'dnsmasq' service if needed ######
+	###### Restart main dnsmasq service if needed ######
 	if ls /var/etc/dnsmasq-go.d/* >/dev/null 2>&1; then
 		# IMPORTANT: Must make sure 'dnsmasq' is NOT running as a system service
 		[ -x /etc/init.d/dnsmasq ] && /etc/init.d/dnsmasq stop
@@ -213,8 +213,9 @@ do_start_wait()
 		cat > /tmp/dnsmasq.d/dnsmasq-go.conf <<EOF
 conf-dir=/var/etc/dnsmasq-go.d
 EOF
-
-		if ! dnsmasq -C /tmp/dnsmasq.d/dnsmasq-go.conf -p $DNSMASQ_PORT -x $DNSMASQ_PIDFILE; then
+		# Prevent another running dnsmasq from using port 53
+		killall -9 dnsmasq 2>/dev/null && sleep 1
+		if ! /usr/sbin/dnsmasq -C /tmp/dnsmasq.d/dnsmasq-go.conf -p $DNSMASQ_PORT -x $DNSMASQ_PIDFILE; then
 			echo "*** WARNING: 'dnsmasq' service was not started successfully."
 		fi
 	fi
@@ -231,9 +232,11 @@ do_stop()
 	rm -rf /var/etc/dnsmasq-go.d
 	rm -f /tmp/dnsmasq.d/dnsmasq-go.conf
 	if [ -f $DNSMASQ_PIDFILE ]; then
-		kill -9 `cat $DNSMASQ_PIDFILE`
+		kill -9 `cat $DNSMASQ_PIDFILE` && sleep 1
 		rm -f $DNSMASQ_PIDFILE
 	fi
+	# Make sure this host always has a dnsmasq running
+	/usr/sbin/dnsmasq -p $DNSMASQ_PORT -x $DNSMASQ_PIDFILE
 
 	# -----------------------------------------------------------------
 	if iptables -t mangle -F minivtun_out 2>/dev/null; then
