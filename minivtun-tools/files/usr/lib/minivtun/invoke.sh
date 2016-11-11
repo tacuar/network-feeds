@@ -191,7 +191,8 @@ do_start_wait()
 		uci commit network
 	fi
 
-	ifup $vt_network
+	#ifup $vt_network
+	iptables -t nat -I POSTROUTING -o $vt_ifname -j MASQUERADE
 
 	# -----------------------------------------------------------------
 	###### IPv4 firewall rules and policy routing ######
@@ -322,7 +323,8 @@ do_stop()
 	# it will be brought down along with the interface.
 	while ip rule del fwmark $VPN_ROUTE_FWMARK table $VPN_IPROUTE_TABLE 2>/dev/null; do :; done
 
-	ifdown $vt_network
+	#ifdown $vt_network
+	while iptables -t nat -D POSTROUTING -o $vt_ifname -j MASQUERADE 2>/dev/null; do :; done
 	if [ -f /var/run/$vt_ifname.pid ]; then
 		kill -9 `cat /var/run/$vt_ifname.pid`
 		rm -f /var/run/$vt_ifname.pid
