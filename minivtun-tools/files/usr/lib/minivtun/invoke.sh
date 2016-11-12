@@ -184,6 +184,7 @@ do_start_wait()
 	echo 0 > /proc/sys/net/ipv4/conf/all/rp_filter
 	echo 0 > /proc/sys/net/ipv4/conf/$vt_ifname/rp_filter
 
+if false; then
 	# Create new interface if not exists
 	local __ifname=`uci get network.$vt_network.ifname 2>/dev/null`
 	if [ "$__ifname" != "$vt_ifname" ]; then
@@ -223,6 +224,7 @@ do_start_wait()
 		uci set network.$vt_network.netmask=$vt_local_netmask
 		uci commit network
 	fi
+fi
 
 	#ifup $vt_network
 	iptables -t nat -I POSTROUTING -o $vt_ifname -j MASQUERADE
