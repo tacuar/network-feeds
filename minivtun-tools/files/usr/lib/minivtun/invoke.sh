@@ -86,6 +86,39 @@ __gfwlist_by_mode()
 	esac
 }
 
+__restart_dnsmasq()
+{
+	# Backup the command line arguments and kill it
+	local pid
+	for pid in `pidof dnsmasq`; do
+		if [ -n "$pid" ]; then
+			cat /proc/$pid/cmdline | xargs -0 > /tmp/dnsmasq.args
+			if grep '\-p 54 ' /tmp/dnsmasq.args >/dev/null; then
+				rm -f /tmp/dnsmasq.args
+				continue
+			else
+				kill -9 $pid
+				sleep 0.2
+				break
+			fi
+		fi
+	done
+
+	if [ -s /tmp/dnsmasq.args ]; then
+		local dnsmasq_cmdline=`cat /tmp/dnsmasq.args`
+		$dnsmasq_cmdline
+		# Set a crontab task to ensure 'dnsmasq' configuration is not cleaned
+		if ! grep 'dnsmasq-go\.sh.*minivtun' /etc/crontabs/root >/dev/null; then
+			cat >> /etc/crontabs/root <<EOF
+* * * * * ( grep 'dnsmasq-go\.d' /etc/dnsmasq.conf || { iptables-save | grep minivtun_ && /etc/init.d/minivtun.sh restart; } ) >/dev/null 2>&1
+EOF
+			touch /etc/crontabs/cron.update
+		fi
+	else
+		logger_warn "WARNING: No existing 'dnsmasq' service found, not bringing up."
+	fi
+}
+
 # New implementation:
 # Attach rules to main 'dnsmasq' service and restart it.
 
@@ -193,6 +226,7 @@ do_start_wait()
 
 	#ifup $vt_network
 	iptables -t nat -I POSTROUTING -o $vt_ifname -j MASQUERADE
+	iptables -I FORWARD -o $vt_ifname -p tcp -m tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu
 
 	# -----------------------------------------------------------------
 	###### IPv4 firewall rules and policy routing ######
@@ -241,6 +275,7 @@ do_start_wait()
 	done
 	[ -n "$vt_safe_dns" ] && \
 		iptables -t mangle -A minivtun_$vt_network -d $vt_safe_dns -p udp --dport $vt_safe_dns_port -j MARK --set-mark $VPN_ROUTE_FWMARK
+	iptables -t mangle -A minivtun_$vt_network -m mark --mark $VPN_ROUTE_FWMARK -j ACCEPT  # stop further matches
 	iptables -t mangle -I PREROUTING -j minivtun_$vt_network
 	iptables -t mangle -I OUTPUT -p udp --dport 53 -j minivtun_$vt_network  # DNS queries over tunnel
 
@@ -265,11 +300,10 @@ do_start_wait()
 	# -----------------------------------------------------------------
 	###### Restart main 'dnsmasq' service if needed ######
 	if ls /var/etc/dnsmasq-go.d/* >/dev/null 2>&1; then
-		mkdir -p /tmp/dnsmasq.d
-		cat > /tmp/dnsmasq.d/dnsmasq-go.conf <<EOF
+		cat > /etc/dnsmasq.conf <<EOF
 conf-dir=/var/etc/dnsmasq-go.d
 EOF
-		/etc/init.d/dnsmasq restart
+		__restart_dnsmasq
 
 		# Check if DNS service was really started
 		local dnsmasq_ok=N
@@ -287,7 +321,7 @@ EOF
 		if [ "$dnsmasq_ok" != Y ]; then
 			logger_warn "WARNING: Attached dnsmasq rules will cause the service startup failure. Removed those configurations."
 			rm -f /tmp/dnsmasq.d/dnsmasq-go.conf
-			/etc/init.d/dnsmasq restart
+			__restart_dnsmasq
 		fi
 	fi
 
@@ -305,7 +339,7 @@ do_stop()
 	rm -rf /var/etc/dnsmasq-go.d
 	if [ -f /tmp/dnsmasq.d/dnsmasq-go.conf ]; then
 		rm -f /tmp/dnsmasq.d/dnsmasq-go.conf
-		/etc/init.d/dnsmasq restart
+		__restart_dnsmasq
 	fi
 
 	# -----------------------------------------------------------------
@@ -324,6 +358,7 @@ do_stop()
 	while ip rule del fwmark $VPN_ROUTE_FWMARK table $VPN_IPROUTE_TABLE 2>/dev/null; do :; done
 
 	#ifdown $vt_network
+	while iptables -D FORWARD -o $vt_ifname -p tcp -m tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null; do :; done
 	while iptables -t nat -D POSTROUTING -o $vt_ifname -j MASQUERADE 2>/dev/null; do :; done
 	if [ -f /var/run/$vt_ifname.pid ]; then
 		kill -9 `cat /var/run/$vt_ifname.pid`
@@ -344,7 +379,7 @@ do_pause()
 	rm -rf /var/etc/dnsmasq-go.d
 	if [ -f /tmp/dnsmasq.d/dnsmasq-go.conf ]; then
 		rm -f /tmp/dnsmasq.d/dnsmasq-go.conf
-		/etc/init.d/dnsmasq restart
+		__restart_dnsmasq
 	fi
 
 	# -----------------------------------------------------------------
