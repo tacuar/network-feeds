@@ -91,31 +91,33 @@ __restart_dnsmasq()
 	# Backup the command line arguments and kill it
 	local pid
 	for pid in `pidof dnsmasq`; do
-		if [ -n "$pid" ]; then
+		if cat /proc/$pid/cmdline | xargs -0 | grep '\-p 54 ' >/dev/null; then
+			continue
+		else
 			cat /proc/$pid/cmdline | xargs -0 > /tmp/dnsmasq.args
-			if grep '\-p 54 ' /tmp/dnsmasq.args >/dev/null; then
-				rm -f /tmp/dnsmasq.args
-				continue
-			else
-				kill -9 $pid
-				sleep 0.2
-				break
-			fi
+			kill -9 $pid
+			sleep 0.2
+			break
 		fi
 	done
 
-	if [ -s /tmp/dnsmasq.args ]; then
-		local dnsmasq_cmdline=`cat /tmp/dnsmasq.args`
-		$dnsmasq_cmdline
-		# Set a crontab task to ensure 'dnsmasq' configuration is not cleaned
-		if ! grep 'dnsmasq-go\.sh.*minivtun' /etc/crontabs/root >/dev/null; then
-			cat >> /etc/crontabs/root <<EOF
+	if ! [ -s /tmp/dnsmasq.args ]; then
+		cat > /tmp/dnsmasq.args <<EOF
+/usr/sbin/dnsmasq -x /var/run/dnsmasq.pid
+EOF
+		logger_warn "WARNING: No configured 'dnsmasq', starting with:"
+		logger_warn "`cat /tmp/dnsmasq.args`"
+	fi
+
+	chmod 644 /etc/resolv.conf
+	local dnsmasq_cmdline=`cat /tmp/dnsmasq.args`
+	$dnsmasq_cmdline
+	# Set a crontab task to ensure 'dnsmasq' configuration is not cleaned
+	if ! grep 'dnsmasq-go\.sh.*minivtun' /etc/crontabs/root >/dev/null; then
+		cat >> /etc/crontabs/root <<EOF
 * * * * * ( grep 'dnsmasq-go\.d' /etc/dnsmasq.conf || { iptables-save | grep minivtun_ && /etc/init.d/minivtun.sh restart; } ) >/dev/null 2>&1
 EOF
-			touch /etc/crontabs/cron.update
-		fi
-	else
-		logger_warn "WARNING: No existing 'dnsmasq' service found, not bringing up."
+		touch /etc/crontabs/cron.update
 	fi
 }
 
@@ -271,6 +273,19 @@ fi
 			iptables -t mangle -A minivtun_$vt_network -m set ! --match-set $vt_gfwlist dst -j RETURN
 			;;
 	esac
+
+	# Bypass VPN traffic
+	iptables -t mangle -A minivtun_$vt_network -p gre -j RETURN
+	iptables -t mangle -A minivtun_$vt_network -p esp -j RETURN
+	iptables -t mangle -A minivtun_$vt_network -p tcp --dport 1723 -j RETURN
+	iptables -t mangle -A minivtun_$vt_network -p udp --dport 1701 -j RETURN
+	iptables -t mangle -A minivtun_$vt_network -p udp --dport 1702:1703 -j RETURN
+	iptables -t mangle -A minivtun_$vt_network -p udp --dport 500 -j RETURN
+	iptables -t mangle -A minivtun_$vt_network -p udp --dport 4500 -j RETURN
+	#
+	iptables -t mangle -A minivtun_$vt_network -p udp --dport 8430:8439 -j RETURN
+	iptables -t mangle -A minivtun_$vt_network -p udp --dport 1702:1703 -j RETURN
+
 	local subnet
 	for subnet in $covered_subnets; do
 		iptables -t mangle -A minivtun_$vt_network -s $subnet -j MARK --set-mark $VPN_ROUTE_FWMARK
@@ -322,7 +337,7 @@ EOF
 		done
 		if [ "$dnsmasq_ok" != Y ]; then
 			logger_warn "WARNING: Attached dnsmasq rules will cause the service startup failure. Removed those configurations."
-			rm -f /tmp/dnsmasq.d/dnsmasq-go.conf
+			> /etc/dnsmasq.conf
 			__restart_dnsmasq
 		fi
 	fi
@@ -339,8 +354,8 @@ do_stop()
 
 	# -----------------------------------------------------------------
 	rm -rf /var/etc/dnsmasq-go.d
-	if [ -f /tmp/dnsmasq.d/dnsmasq-go.conf ]; then
-		rm -f /tmp/dnsmasq.d/dnsmasq-go.conf
+	if [ -s /etc/dnsmasq.conf ]; then
+		> /etc/dnsmasq.conf
 		__restart_dnsmasq
 	fi
 
@@ -379,8 +394,8 @@ do_pause()
 
 	# -----------------------------------------------------------------
 	rm -rf /var/etc/dnsmasq-go.d
-	if [ -f /tmp/dnsmasq.d/dnsmasq-go.conf ]; then
-		rm -f /tmp/dnsmasq.d/dnsmasq-go.conf
+	if [ -s /etc/dnsmasq.conf ]; then
+		> /etc/dnsmasq.conf
 		__restart_dnsmasq
 	fi
 
