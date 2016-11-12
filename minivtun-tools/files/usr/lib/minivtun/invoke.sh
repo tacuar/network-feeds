@@ -113,7 +113,7 @@ EOF
 	local dnsmasq_cmdline=`cat /tmp/dnsmasq.args`
 	$dnsmasq_cmdline
 	# Set a crontab task to ensure 'dnsmasq' configuration is not cleaned
-	if ! grep 'dnsmasq-go\.sh.*minivtun' /etc/crontabs/root >/dev/null; then
+	if ! grep 'dnsmasq-go.*minivtun' /etc/crontabs/root >/dev/null; then
 		cat >> /etc/crontabs/root <<EOF
 * * * * * ( grep 'dnsmasq-go\.d' /etc/dnsmasq.conf || { iptables-save | grep minivtun_ && /etc/init.d/minivtun.sh restart; } ) >/dev/null 2>&1
 EOF
