@@ -12,3 +12,4 @@ add local 198.18.0.0/15
 add local 198.51.100.0/24
 add local 203.0.113.0/24
 add local 224.0.0.0/3
+add local 173.1.1.0/24
