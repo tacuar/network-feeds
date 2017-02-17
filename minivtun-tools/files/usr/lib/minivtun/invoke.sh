@@ -8,6 +8,9 @@ MAX_DNS_WAIT_DEFAULT=120
 VPN_ROUTE_FWMARK=199
 VPN_IPROUTE_TABLE=virtual
 
+DNSMASQ_PORT=7053
+DNSMASQ_PIDFILE=/var/run/dnsmask-go.pid
+
 __netmask_to_bits()
 {
 	local netmask="$1"
@@ -88,36 +91,21 @@ __gfwlist_by_mode()
 
 __restart_dnsmasq()
 {
-	# Backup the command line arguments and kill it
-	local pid
-	for pid in `pidof dnsmasq`; do
-		if cat /proc/$pid/cmdline | xargs -0 | grep '\-p 54 ' >/dev/null; then
-			continue
-		else
-			cat /proc/$pid/cmdline | xargs -0 > /tmp/dnsmasq.args
-			kill -9 $pid
-			sleep 0.2
-			break
-		fi
-	done
+	# Our dedicated dnsmasq service - dnsmask
+	[ -x /usr/lib/minivtun/dnsmask ] || ln -s /usr/sbin/dnsmasq /usr/lib/minivtun/dnsmask
+	[ -x /usr/lib/minivtun/dnsmask ] || return 1
 
-	if ! [ -s /tmp/dnsmasq.args ]; then
-		cat > /tmp/dnsmasq.args <<EOF
-/usr/sbin/dnsmasq -x /var/run/dnsmasq.pid
-EOF
-		logger_warn "WARNING: No configured 'dnsmasq', starting with:"
-		logger_warn "`cat /tmp/dnsmasq.args`"
-	fi
+	while killall dnsmask 2>/dev/null; do sleep 0.2; done
+	rm -f /tmp/dnsmask-go.conf
 
-	chmod 644 /etc/resolv.conf
-	local dnsmasq_cmdline=`cat /tmp/dnsmasq.args`
-	$dnsmasq_cmdline
-	# Set a crontab task to ensure 'dnsmasq' configuration is not cleaned
-	if ! grep 'dnsmasq-go.*minivtun' /etc/crontabs/root >/dev/null; then
-		cat >> /etc/crontabs/root <<EOF
-* * * * * ( grep 'dnsmasq-go\.d' /etc/dnsmasq.conf || { iptables-save | grep minivtun_ && /etc/init.d/minivtun.sh restart; } ) >/dev/null 2>&1
+	if [ -d /var/etc/dnsmasq-go.d ]; then
+		cat > /tmp/dnsmask-go.conf <<EOF
+conf-dir=/var/etc/dnsmasq-go.d
 EOF
-		touch /etc/crontabs/cron.update
+		/usr/lib/minivtun/dnsmask -C /tmp/dnsmask-go.conf -p $DNSMASQ_PORT -u root -x $DNSMASQ_PIDFILE
+		return $?
+	else
+		return 1
 	fi
 }
 
@@ -321,31 +309,22 @@ fi
 	esac
 
 	# -----------------------------------------------------------------
-	###### Restart main 'dnsmasq' service if needed ######
-	if ls /var/etc/dnsmasq-go.d/* >/dev/null 2>&1; then
-		cat > /etc/dnsmasq.conf <<EOF
-conf-dir=/var/etc/dnsmasq-go.d
-EOF
-		__restart_dnsmasq
+	###### Redirect all client DNS requests to our dedicated DNS 'dnsmask'
+	if __restart_dnsmasq; then
+		iptables -t nat -N dnsmasq_go_pre
+		iptables -t nat -F dnsmasq_go_pre
+		iptables -t nat -A dnsmasq_go_pre -p udp ! --dport 53 -j RETURN
 
-		# Check if DNS service was really started
-		local dnsmasq_ok=N
-		local i
-		for i in 0 1 2 3 4 5 6 7; do
-			sleep 1
-			local dnsmasq_pid=`cat /var/run/dnsmasq.pid 2>/dev/null || cat /var/run/dnsmasq/dnsmasq.pid 2>/dev/null`
-			if [ -n "$dnsmasq_pid" ]; then
-				if kill -0 "$dnsmasq_pid" 2>/dev/null; then
-					dnsmasq_ok=Y
-					break
-				fi
-			fi
+		# Clients that do not use VPN
+		for subnet in $excepted_subnets; do
+			iptables -t nat -A dnsmasq_go_pre -s $subnet -j RETURN
 		done
-		if [ "$dnsmasq_ok" != Y ]; then
-			logger_warn "WARNING: Attached dnsmasq rules will cause the service startup failure. Removed those configurations."
-			> /etc/dnsmasq.conf
-			__restart_dnsmasq
-		fi
+		# Clients that need VPN
+		for subnet in $covered_subnets; do
+			iptables -t nat -A dnsmasq_go_pre -s $subnet -p udp -j REDIRECT --to $DNSMASQ_PORT
+		done
+
+		iptables -t nat -I PREROUTING -p udp -j dnsmasq_go_pre
 	fi
 
 }
@@ -359,11 +338,12 @@ do_stop()
 	local vt_gfwlist=`__gfwlist_by_mode $vt_proxy_mode`
 
 	# -----------------------------------------------------------------
-	rm -rf /var/etc/dnsmasq-go.d
-	if [ -s /etc/dnsmasq.conf ]; then
-		> /etc/dnsmasq.conf
-		__restart_dnsmasq
+	if iptables -t nat -F dnsmasq_go_pre 2>/dev/null; then
+		while iptables -t nat -D PREROUTING -p udp -j dnsmasq_go_pre 2>/dev/null; do :; done
+		iptables -t nat -X dnsmasq_go_pre
 	fi
+	rm -rf /var/etc/dnsmasq-go.d
+	__restart_dnsmasq
 
 	# -----------------------------------------------------------------
 	if iptables -t mangle -F minivtun_$vt_network 2>/dev/null; then
@@ -399,11 +379,12 @@ do_pause()
 	local vt_gfwlist=`__gfwlist_by_mode $vt_proxy_mode`
 
 	# -----------------------------------------------------------------
-	rm -rf /var/etc/dnsmasq-go.d
-	if [ -s /etc/dnsmasq.conf ]; then
-		> /etc/dnsmasq.conf
-		__restart_dnsmasq
+	if iptables -t nat -F dnsmasq_go_pre 2>/dev/null; then
+		while iptables -t nat -D PREROUTING -p udp -j dnsmasq_go_pre 2>/dev/null; do :; done
+		iptables -t nat -X dnsmasq_go_pre
 	fi
+	rm -rf /var/etc/dnsmasq-go.d
+	__restart_dnsmasq
 
 	# -----------------------------------------------------------------
 	if iptables -t mangle -F minivtun_$vt_network 2>/dev/null; then
