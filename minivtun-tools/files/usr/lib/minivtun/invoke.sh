@@ -272,8 +272,7 @@ fi
 	iptables -t mangle -A minivtun_$vt_network -p udp --dport 500 -j RETURN
 	iptables -t mangle -A minivtun_$vt_network -p udp --dport 4500 -j RETURN
 	#
-	iptables -t mangle -A minivtun_$vt_network -p udp --dport 8430:8439 -j RETURN
-	iptables -t mangle -A minivtun_$vt_network -p udp --dport 1702:1703 -j RETURN
+	iptables -t mangle -A minivtun_$vt_network -p udp --dport 8400:8499 -j RETURN
 
 	# Clients that do not use VPN
 	local subnet
