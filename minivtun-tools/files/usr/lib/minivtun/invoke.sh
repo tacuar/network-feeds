@@ -269,7 +269,6 @@ fi
 	iptables -t mangle -A minivtun_$vt_network -p esp -j RETURN
 	iptables -t mangle -A minivtun_$vt_network -p tcp --dport 1723 -j RETURN
 	iptables -t mangle -A minivtun_$vt_network -p udp --dport 1701 -j RETURN
-	iptables -t mangle -A minivtun_$vt_network -p udp --dport 1702:1703 -j RETURN
 	iptables -t mangle -A minivtun_$vt_network -p udp --dport 500 -j RETURN
 	iptables -t mangle -A minivtun_$vt_network -p udp --dport 4500 -j RETURN
 	#
@@ -288,11 +287,17 @@ fi
 	for subnet in $covered_subnets; do
 		iptables -t mangle -A minivtun_$vt_network -s $subnet -j MARK --set-mark $VPN_ROUTE_FWMARK
 	done
-	[ -n "$vt_safe_dns" ] && \
+	# Local DNS queries over tunnel
+	iptables -t mangle -A minivtun_$vt_network -m mark --mark 7711 -j MARK --set-mark $VPN_ROUTE_FWMARK
+	# Forwarded safe DNS queries over tunnel
+	if [ -n "$vt_safe_dns" ]; then
 		iptables -t mangle -A minivtun_$vt_network -d $vt_safe_dns -p udp --dport $vt_safe_dns_port -j MARK --set-mark $VPN_ROUTE_FWMARK
+	fi
 	iptables -t mangle -A minivtun_$vt_network -m mark --mark $VPN_ROUTE_FWMARK -j ACCEPT  # stop further matches
+	#
 	iptables -t mangle -I PREROUTING -j minivtun_$vt_network
-	iptables -t mangle -I OUTPUT -p udp --dport 53 -j minivtun_$vt_network  # DNS queries over tunnel
+	iptables -t mangle -I OUTPUT -p udp --dport 53 -j minivtun_$vt_network  # DNS over tunnel
+	iptables -t mangle -I OUTPUT -p udp --dport 53 -j MARK --set-mark 7711  # DNS over tunnel
 
 	# -----------------------------------------------------------------
 	mkdir -p /var/etc/dnsmasq-go.d
@@ -354,6 +359,7 @@ do_stop()
 
 	# -----------------------------------------------------------------
 	if iptables -t mangle -F minivtun_$vt_network 2>/dev/null; then
+		while iptables -t mangle -D OUTPUT -p udp --dport 53 -j MARK --set-mark 7711 2>/dev/null; do :; done
 		while iptables -t mangle -D OUTPUT -p udp --dport 53 -j minivtun_$vt_network 2>/dev/null; do :; done
 		while iptables -t mangle -D PREROUTING -j minivtun_$vt_network 2>/dev/null; do :; done
 		iptables -t mangle -X minivtun_$vt_network 2>/dev/null
@@ -395,6 +401,7 @@ do_pause()
 
 	# -----------------------------------------------------------------
 	if iptables -t mangle -F minivtun_$vt_network 2>/dev/null; then
+		while iptables -t mangle -D OUTPUT -p udp --dport 53 -j MARK --set-mark 7711 2>/dev/null; do :; done
 		while iptables -t mangle -D OUTPUT -p udp --dport 53 -j minivtun_$vt_network 2>/dev/null; do :; done
 		while iptables -t mangle -D PREROUTING -j minivtun_$vt_network 2>/dev/null; do :; done
 		iptables -t mangle -X minivtun_$vt_network 2>/dev/null
